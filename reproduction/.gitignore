@@ -1,0 +1,8 @@
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+_targets/
+renv/library/
+renv/staging/
+renv/sandbox/
