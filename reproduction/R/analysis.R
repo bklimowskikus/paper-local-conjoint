@@ -520,11 +520,11 @@ make_office_plot <- function(office_mms) {
     theme_paper()
 }
 
-shape_values <- c("Non-aligned" = 1, "Aligned" = 16)
+shape_values <- c("Non-aligned" = 2, "Aligned" = 16)
 municip_shape_values <- c(
   "Lives elsewhere; knows local issues" = 1,
   "Lives locally for a few years" = 4,
-  "Lives locally since birth" = 16
+  "Lives locally since birth" = 15
 )
 municip_legend_labels <- c(
   "Lives elsewhere; knows local issues" = "Outsider; knows local issues",
@@ -610,7 +610,6 @@ make_interaction_plot <- function(
     pull(estimate)
 
   cross_profile_color <- "#D55E00"
-  dodge_width <- 0.55
   cross_profile_bracket <- function(y_bottom, y_top) {
     list(
       annotate(
@@ -694,37 +693,10 @@ make_interaction_plot <- function(
       x = "Home difference in marginal means",
       y = NULL,
       shape = NULL,
-      title = "Differences in marginal means"
+      tag = "B"
     ) +
     theme_paper() +
     theme(legend.position = "none")
-
-  alignment_mm_plot <- ggplot(
-    mm_data,
-    aes(x = estimate, y = alignment_nice, shape = municip_nice, group = municip_nice)
-  ) +
-    geom_vline(xintercept = 0.5, linewidth = 0.35, color = "grey55") +
-    geom_pointrange(
-      aes(xmin = conf.low, xmax = conf.high),
-      position = position_dodge(width = dodge_width),
-      linewidth = 0.35
-    ) +
-    cross_profile_bracket(y_bottom = 0.65, y_top = 2.35) +
-    scale_x_continuous(labels = label_percent(accuracy = 1)) +
-    coord_cartesian(xlim = c(0.20, 0.72)) +
-    scale_shape_manual(
-      values = municip_shape_values,
-      labels = municip_legend_labels
-    ) +
-    guides(shape = guide_legend(nrow = 2, byrow = TRUE)) +
-    labs(
-      x = "Predicted probability",
-      y = NULL,
-      shape = NULL,
-      title = "Marginal means",
-      tag = "B"
-    ) +
-    theme_paper()
 
   alignment_difference_plot <- ggplot(
     political_differences,
@@ -737,19 +709,25 @@ make_interaction_plot <- function(
       linewidth = 0.35
     ) +
     scale_x_continuous(labels = label_percent(accuracy = 1)) +
-    scale_shape_manual(values = municip_shape_values) +
+    scale_shape_manual(
+      values = municip_shape_values,
+      labels = municip_legend_labels
+    ) +
+    guides(shape = guide_legend(nrow = 2, byrow = TRUE)) +
     labs(
       x = "Government-alignment difference in marginal means",
       y = NULL,
       shape = NULL,
-      title = "Differences in marginal means"
+      tag = "C"
     ) +
-    theme_paper() +
-    theme(legend.position = "none")
+    theme_paper()
 
-  (home_mm_plot | alignment_mm_plot) /
+  bottom_difference_plots <-
     (home_difference_plot | alignment_difference_plot) +
-    plot_layout(widths = c(1.1, 1), heights = c(1.15, 1))
+    plot_annotation(title = "Differences in marginal means")
+
+  home_mm_plot / wrap_elements(full = bottom_difference_plots) +
+    plot_layout(heights = c(1.15, 1))
 }
 
 nice_model_term <- function(term) {

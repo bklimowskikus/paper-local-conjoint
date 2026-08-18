@@ -212,6 +212,13 @@ interaction_plot <- make_interaction_plot(
   alignment_differences,
   alignment_cross_profile
 )
+interaction_top <- interaction_plot[[1]]
+interaction_bottom <- interaction_plot[[2]]
+interaction_bottom_plots <- attr(interaction_bottom, "grobs")$full
+all_interaction_shapes <- c(
+  unname(shape_values),
+  unname(municip_shape_values)
+)
 plotted_cross_profile_difference <- with(
   alignment,
   estimate[political_alignment == "aligned" & municip == "outside_knows_issues"] -
@@ -258,18 +265,18 @@ stopifnot(
   all(respondent_balance$cramers_v >= 0),
   has_vertical_reference(main_plot$patches$plots[[1]]),
   has_vertical_reference(office_plot),
-  has_vertical_reference(
-    interaction_plot$patches$plots[[1]]$patches$plots[[1]]
+  !inherits(interaction_top, "patchwork"),
+  inherits(interaction_bottom, "wrapped_patch"),
+  identical(interaction_top$labels$title, "Marginal means"),
+  identical(
+    interaction_bottom_plots$patches$annotation$title,
+    "Differences in marginal means"
   ),
-  has_vertical_reference(
-    interaction_plot$patches$plots[[2]]$patches$plots[[1]]
-  ),
-  has_cross_profile_bracket(
-    interaction_plot$patches$plots[[1]]$patches$plots[[1]]
-  ),
-  has_cross_profile_bracket(
-    interaction_plot$patches$plots[[1]]
-  ),
+  length(unique(all_interaction_shapes)) == length(all_interaction_shapes),
+  has_vertical_reference(interaction_top),
+  has_vertical_reference(interaction_bottom_plots[[1]]),
+  has_vertical_reference(interaction_bottom_plots[[2]]),
+  has_cross_profile_bracket(interaction_top),
   !any(grepl("second-largest", manuscript_lines, fixed = TRUE)),
   !any(grepl("residence adds", manuscript_lines, fixed = TRUE)),
   !any(grepl("residence gains", manuscript_lines, fixed = TRUE)),
@@ -279,6 +286,14 @@ stopifnot(
     fixed = TRUE
   )) >= 4L,
   any(grepl("#tbl-figure3-pairwise", manuscript_lines, fixed = TRUE)),
+  any(grepl("high-salience benchmark", manuscript_lines, fixed = TRUE)),
+  any(grepl("does not establish an upper bound", manuscript_lines, fixed = TRUE)),
+  any(grepl("does not imply complete nationalization", manuscript_lines, fixed = TRUE)),
+  !any(grepl(
+    "evidence that the two cues reinforce each other",
+    manuscript_lines,
+    fixed = TRUE
+  )),
   !any(grepl("waga1|waga2", manuscript_lines)),
   any(grepl("2,207 respondents", manuscript_lines, fixed = TRUE)),
   any(grepl("13.4 percentage points", manuscript_lines, fixed = TRUE)),
