@@ -18,7 +18,7 @@ suppressPackageStartupMessages({
 `%||%` <- function(x, y) if (is.null(x)) y else x
 
 theme_paper <- function() {
-  theme_minimal(base_size = 9) +
+  theme_minimal(base_size = 10) +
     theme(
       panel.grid.minor = element_blank(),
       panel.grid.major.y = element_blank(),
@@ -26,9 +26,9 @@ theme_paper <- function() {
       strip.background = element_rect(fill = "grey92", color = NA),
       legend.position = "top",
       legend.justification = "left",
-      plot.title = element_text(size = 10, face = "plain", hjust = 0.5),
-      plot.tag = element_text(face = "bold", size = 11),
-      axis.title = element_text(size = 9)
+      plot.title = element_text(size = 11, face = "plain", hjust = 0.5),
+      plot.tag = element_text(face = "bold", size = 12),
+      axis.title = element_text(size = 10)
     )
 }
 
@@ -79,7 +79,7 @@ prepare_conjoint_data <- function(path = "data/conjoint_1fala.dta") {
     advantage = as.numeric(raw$advantage),
     age = factor(raw$age, levels = c(31, 43, 55, 67), labels = c("31", "43", "55", "67")),
     sex = factor(
-      dplyr::recode(as.character(raw$sex), `1` = "male", `2` = "female"),
+      dplyr::recode(as.character(raw$sex), `1` = "female", `2` = "male"),
       levels = c("male", "female")
     ),
     occupation = factor(
@@ -135,6 +135,23 @@ prepare_respondent_groups <- function(
         respondent_gov,
         levels = c("anti_respondent", "mixed_respondent", "pro_respondent")
       )
+    ) %>%
+    distinct(ID, .keep_all = TRUE)
+}
+
+prepare_respondent_covariates <- function(path = "data/PLSW_1-2fala_final.dta") {
+  haven::read_dta(path) %>%
+    transmute(
+      ID = factor(ID),
+      sex = factor(case_when(sex == 1 ~ "female", sex == 2 ~ "male")),
+      age_group = factor(age_group),
+      education = factor(if_else(
+        educ <= 3,
+        "secondary_or_less",
+        "postsecondary_or_tertiary"
+      )),
+      settlement = factor(settlement),
+      voivodeship = factor(substr(sprintf("%06.0f", as.numeric(teryt)), 1, 2))
     ) %>%
     distinct(ID, .keep_all = TRUE)
 }
@@ -212,6 +229,92 @@ estimate_reference_difference <- function(fit, variable, by = NULL) {
     type = "response"
   ) %>%
     as_tibble()
+}
+
+linear_contrast <- function(fit, terms, contrast) {
+  weights <- setNames(rep(0, length(coef(fit))), names(coef(fit)))
+  stopifnot(all(names(terms) %in% names(weights)))
+  weights[names(terms)] <- terms
+
+  estimate <- sum(weights * coef(fit))
+  std.error <- sqrt(drop(t(weights) %*% vcov(fit) %*% weights))
+  degrees_freedom <- estimand_df(fit)
+  critical_value <- qt(0.975, degrees_freedom)
+
+  tibble(
+    contrast,
+    estimate,
+    std.error,
+    conf.low = estimate - critical_value * std.error,
+    conf.high = estimate + critical_value * std.error,
+    p.value = 2 * pt(abs(estimate / std.error), degrees_freedom, lower.tail = FALSE)
+  )
+}
+
+collect_alignment_interactions <- function(
+  fit,
+  coding,
+  definition,
+  outcome,
+  weight,
+  respondents,
+  profiles
+) {
+  broom::tidy(fit, conf.int = TRUE) %>%
+    filter(grepl("municip.*:political_alignmentaligned$", term)) %>%
+    transmute(
+      coding,
+      definition,
+      outcome,
+      weight,
+      respondents,
+      profiles,
+      municipal_contrast = recode(
+        term,
+        "municiplocal_few_years:political_alignmentaligned" =
+          "Few years local vs outsider",
+        "municiplocal_since_birth:political_alignmentaligned" =
+          "Local since birth vs outsider"
+      ),
+      estimate,
+      std.error,
+      conf.low,
+      conf.high,
+      p.value
+    ) %>%
+    mutate(p_holm = p.adjust(p.value, method = "holm"))
+}
+
+collect_respondent_balance <- function(conjoint, respondent_path) {
+  office_assignment <- conjoint %>% distinct(ID, office)
+
+  balance_long <- prepare_respondent_covariates(respondent_path) %>%
+    inner_join(office_assignment, by = "ID") %>%
+    pivot_longer(
+      cols = c(sex, age_group, education, settlement, voivodeship),
+      names_to = "covariate",
+      values_to = "level"
+    ) %>%
+    drop_na(level)
+
+  purrr::map_dfr(split(balance_long, balance_long$covariate), function(data) {
+    tabulation <- table(droplevels(data$level), droplevels(data$office))
+    test <- chisq.test(tabulation, correct = FALSE)
+
+    tibble(
+      covariate = unique(data$covariate),
+      respondents = sum(tabulation),
+      categories = nrow(tabulation),
+      statistic = unname(test$statistic),
+      df = unname(test$parameter),
+      p.value = test$p.value,
+      cramers_v = sqrt(
+        unname(test$statistic) /
+          (sum(tabulation) * min(nrow(tabulation) - 1, ncol(tabulation) - 1))
+      )
+    )
+  }) %>%
+    mutate(p_holm = p.adjust(p.value, method = "holm"))
 }
 
 collect_main_estimands <- function(fit) {
@@ -302,6 +405,18 @@ make_main_effect_plot <- function(main_effects) {
   plot_data <- main_effects %>%
     mutate(
       attribute_nice = factor(attribute_nice, levels = attribute_lookup$attribute_nice),
+      attribute_strip = factor(
+        recode(
+          as.character(attribute_nice),
+          "Candidate age" = "Age",
+          "Candidate sex" = "Sex",
+          "Government-opposition cue" = "Government cue"
+        ),
+        levels = c(
+          "Age", "Sex", "Occupation", "Government cue",
+          "Municipal roots", "Policy priority"
+        )
+      ),
       plot_level = factor(
         paste(attribute, level, sep = "::"),
         levels = rev(key_levels)
@@ -318,11 +433,11 @@ make_main_effect_plot <- function(main_effects) {
       color = "grey35"
     ) +
     geom_point(size = 1.8, shape = 16) +
-    facet_grid(attribute_nice ~ ., scales = "free_y", space = "free_y") +
+    facet_grid(attribute_strip ~ ., scales = "free_y", space = "free_y") +
     scale_x_continuous(labels = label_percent(accuracy = 1)) +
     scale_y_discrete(labels = label_map) +
     labs(
-      x = "Predicted probability of being judged more competent",
+      x = "Predicted probability of being selected as better suited",
       y = NULL,
       title = "Marginal means"
     ) +
@@ -347,7 +462,7 @@ make_main_effect_plot <- function(main_effects) {
       size = 2.4,
       color = "grey35"
     ) +
-    facet_grid(attribute_nice ~ ., scales = "free_y", space = "free_y") +
+    facet_grid(attribute_strip ~ ., scales = "free_y", space = "free_y") +
     scale_x_continuous(labels = label_percent(accuracy = 1)) +
     scale_y_discrete(labels = label_map) +
     scale_shape_manual(values = c(`FALSE` = 16, `TRUE` = 1), guide = "none") +
@@ -356,10 +471,16 @@ make_main_effect_plot <- function(main_effects) {
       y = NULL,
       title = "AMCEs"
     ) +
-    theme_paper()
+    theme_paper() +
+    theme(
+      axis.text.y = element_blank(),
+      axis.ticks.y = element_blank(),
+      strip.text.y = element_blank(),
+      strip.background.y = element_blank()
+    )
 
   mm_plot + amce_plot +
-    plot_layout(widths = c(1.15, 1))
+    plot_layout(widths = c(1.2, 1))
 }
 
 make_office_plot <- function(office_mms) {
@@ -391,7 +512,7 @@ make_office_plot <- function(office_mms) {
     scale_color_manual(values = c("MP" = "#0072B2", "Mayor" = "#E69F00", "Councillor" = "#009E73")) +
     scale_shape_manual(values = c("MP" = 16, "Mayor" = 17, "Councillor" = 15)) +
     labs(
-      x = "Predicted probability of being judged more competent",
+      x = "Predicted probability of being selected as better suited",
       y = NULL,
       color = NULL,
       shape = NULL
@@ -405,8 +526,17 @@ municip_shape_values <- c(
   "Lives locally for a few years" = 4,
   "Lives locally since birth" = 16
 )
+municip_legend_labels <- c(
+  "Lives elsewhere; knows local issues" = "Outsider; knows local issues",
+  "Lives locally for a few years" = "Local for a few years",
+  "Lives locally since birth" = "Local since birth"
+)
 
-make_interaction_plot <- function(alignment_mms, alignment_differences) {
+make_interaction_plot <- function(
+  alignment_mms,
+  alignment_differences,
+  alignment_cross_profile
+) {
   mm_data <- alignment_mms %>%
     mutate(
       alignment_nice = factor(
@@ -462,6 +592,69 @@ make_interaction_plot <- function(alignment_mms, alignment_differences) {
       )
     )
 
+  cross_profile_estimate <- alignment_cross_profile %>%
+    filter(contrast == "Aligned outsider minus non-aligned lifelong resident") %>%
+    pull(estimate)
+
+  non_aligned_lifelong_mm <- mm_data %>%
+    filter(
+      political_alignment == "non_aligned",
+      municip == "local_since_birth"
+    ) %>%
+    pull(estimate)
+  aligned_outsider_mm <- mm_data %>%
+    filter(
+      political_alignment == "aligned",
+      municip == "outside_knows_issues"
+    ) %>%
+    pull(estimate)
+
+  cross_profile_color <- "#D55E00"
+  dodge_width <- 0.55
+  cross_profile_bracket <- function(y_bottom, y_top) {
+    list(
+      annotate(
+        "segment",
+        x = non_aligned_lifelong_mm,
+        xend = non_aligned_lifelong_mm,
+        y = y_bottom,
+        yend = y_top,
+        color = cross_profile_color,
+        linetype = "dotted",
+        linewidth = 0.35
+      ),
+      annotate(
+        "segment",
+        x = aligned_outsider_mm,
+        xend = aligned_outsider_mm,
+        y = y_bottom,
+        yend = y_top,
+        color = cross_profile_color,
+        linetype = "dotted",
+        linewidth = 0.35
+      ),
+      annotate(
+        "segment",
+        x = non_aligned_lifelong_mm,
+        xend = aligned_outsider_mm,
+        y = y_top,
+        yend = y_top,
+        color = cross_profile_color,
+        linewidth = 0.65
+      ),
+      annotate(
+        "label",
+        x = mean(c(non_aligned_lifelong_mm, aligned_outsider_mm)),
+        y = y_top + 0.08,
+        label = sprintf("%.1f pp", 100 * cross_profile_estimate),
+        color = cross_profile_color,
+        fill = "white",
+        linewidth = 0.35,
+        size = 2.8
+      )
+    )
+  }
+
   home_mm_plot <- ggplot(
     mm_data,
     aes(x = estimate, y = municip_nice, shape = alignment_nice, group = alignment_nice)
@@ -472,6 +665,7 @@ make_interaction_plot <- function(alignment_mms, alignment_differences) {
       position = position_dodge(width = 0.55),
       linewidth = 0.35
     ) +
+    cross_profile_bracket(y_bottom = 0.65, y_top = 3.35) +
     scale_x_continuous(labels = label_percent(accuracy = 1)) +
     coord_cartesian(xlim = c(0.20, 0.72)) +
     scale_shape_manual(values = shape_values) +
@@ -512,12 +706,17 @@ make_interaction_plot <- function(alignment_mms, alignment_differences) {
     geom_vline(xintercept = 0.5, linewidth = 0.35, color = "grey55") +
     geom_pointrange(
       aes(xmin = conf.low, xmax = conf.high),
-      position = position_dodge(width = 0.55),
+      position = position_dodge(width = dodge_width),
       linewidth = 0.35
     ) +
+    cross_profile_bracket(y_bottom = 0.65, y_top = 2.35) +
     scale_x_continuous(labels = label_percent(accuracy = 1)) +
     coord_cartesian(xlim = c(0.20, 0.72)) +
-    scale_shape_manual(values = municip_shape_values) +
+    scale_shape_manual(
+      values = municip_shape_values,
+      labels = municip_legend_labels
+    ) +
+    guides(shape = guide_legend(nrow = 2, byrow = TRUE)) +
     labs(
       x = "Predicted probability",
       y = NULL,
@@ -548,9 +747,9 @@ make_interaction_plot <- function(alignment_mms, alignment_differences) {
     theme_paper() +
     theme(legend.position = "none")
 
-  (home_mm_plot | home_difference_plot) /
-    (alignment_mm_plot | alignment_difference_plot) +
-    plot_layout(widths = c(1.25, 1))
+  (home_mm_plot | alignment_mm_plot) /
+    (home_difference_plot | alignment_difference_plot) +
+    plot_layout(widths = c(1.1, 1), heights = c(1.15, 1))
 }
 
 nice_model_term <- function(term) {
@@ -583,11 +782,15 @@ validate_results <- function(
   main_effects,
   office_mms,
   office_interaction_test,
+  office_pairwise,
   alignment_mms,
   alignment_differences,
   alignment_sensitivity,
+  alignment_interactions,
+  alignment_cross_profile,
   robustness,
   balance,
+  respondent_balance,
   advantage_distribution
 ) {
   stopifnot(
@@ -600,6 +803,8 @@ validate_results <- function(
     !anyDuplicated(office_mms[c("office", "municip")]),
     nrow(office_interaction_test) == 1L,
     identical(office_interaction_test$term, "municip:office"),
+    nrow(office_pairwise) == 9L,
+    all(office_pairwise$p_holm >= office_pairwise$p.value),
     !anyDuplicated(alignment_mms[c("political_alignment", "municip")]),
     setequal(
       as.character(unique(alignment_mms$political_alignment)),
@@ -609,6 +814,7 @@ validate_results <- function(
       unique(alignment_differences$direction),
       c("home_within_alignment", "alignment_within_home")
     ),
+    all(alignment_differences$p_holm >= alignment_differences$p.value),
     nrow(alignment_sensitivity) == 9L,
     setequal(
       unique(alignment_sensitivity$coding),
@@ -618,17 +824,25 @@ validate_results <- function(
       unique(robustness$weight),
       c("unweighted", "census_margins", "census_vote_2023")
     ),
+    nrow(alignment_interactions) == 12L,
+    nrow(alignment_cross_profile) == 2L,
     setequal(unique(robustness$outcome), c("competence", "advantage")),
     nrow(balance) > 0L,
+    nrow(respondent_balance) == 5L,
+    all(respondent_balance$cramers_v >= 0),
     identical(advantage_distribution$rating, 0:10),
     sum(advantage_distribution$n) == nrow(conjoint) / 2,
     all(is.finite(main_effects$estimate)),
     all(is.finite(office_mms$estimate)),
     all(is.finite(office_interaction_test$statistic)),
     all(is.finite(office_interaction_test$p.value)),
+    all(is.finite(office_pairwise$estimate)),
     all(is.finite(alignment_mms$estimate)),
     all(is.finite(alignment_differences$estimate)),
-    all(is.finite(alignment_sensitivity$estimate))
+    all(is.finite(alignment_sensitivity$estimate)),
+    all(is.finite(alignment_interactions$estimate)),
+    all(is.finite(alignment_cross_profile$estimate)),
+    all(is.finite(respondent_balance$p.value))
   )
 }
 
@@ -636,7 +850,7 @@ build_paper_outputs <- function(
   conjoint_path,
   respondent_path,
   results_dir = "results",
-  figures_dir = "../paper_draft/figs"
+  figures_dir = "../paper_draft/v2/figs"
 ) {
   reports_dir <- results_dir
 
@@ -646,6 +860,7 @@ build_paper_outputs <- function(
   conjoint <- prepare_conjoint_data(conjoint_path)
   respondent_groups <- prepare_respondent_groups(respondent_path)
   alignment_data <- add_political_alignment(conjoint, respondent_groups)
+  respondent_balance <- collect_respondent_balance(conjoint, respondent_path)
 
   office_counts <- conjoint %>%
     distinct(ID, office) %>%
@@ -685,10 +900,35 @@ build_paper_outputs <- function(
     p.value = as.numeric(office_interaction$p)
   )
 
-  alignment_mms <- estimate_mm(
+  office_pairwise <- avg_comparisons(
+    office_fit,
+    variables = list(office = "pairwise"),
+    by = "municip",
+    wts = estimand_weights(office_fit),
+    df = estimand_df(office_fit),
+    type = "response"
+  ) %>%
+    as_tibble() %>%
+    transmute(
+      municip = as.character(municip),
+      contrast,
+      estimate,
+      std.error,
+      conf.low,
+      conf.high,
+      p.value,
+      p_holm = p.adjust(p.value, method = "holm")
+    )
+
+  # Standardize both interacted factors over the same covariate distribution,
+  # so differences between plotted marginal means equal model-based contrasts.
+  alignment_mms <- avg_predictions(
     alignment_fit,
-    "municip",
-    by = "political_alignment"
+    variables = c("political_alignment", "municip"),
+    by = c("political_alignment", "municip"),
+    wts = estimand_weights(alignment_fit),
+    df = estimand_df(alignment_fit),
+    type = "response"
   ) %>%
     transmute(
       political_alignment = as.character(political_alignment),
@@ -734,7 +974,28 @@ build_paper_outputs <- function(
       p.value
     )
 
-  alignment_differences <- bind_rows(home_differences, political_differences)
+  alignment_differences <- bind_rows(home_differences, political_differences) %>%
+    mutate(p_holm = p.adjust(p.value, method = "holm"))
+
+  alignment_cross_profile <- bind_rows(
+    linear_contrast(
+      alignment_fit,
+      c(
+        political_alignmentaligned = 1,
+        municiplocal_few_years = -1
+      ),
+      "Aligned outsider minus non-aligned resident of a few years"
+    ),
+    linear_contrast(
+      alignment_fit,
+      c(
+        political_alignmentaligned = 1,
+        municiplocal_since_birth = -1
+      ),
+      "Aligned outsider minus non-aligned lifelong resident"
+    )
+  ) %>%
+    mutate(p_holm = p.adjust(p.value, method = "holm"))
 
   alignment_schemes <- tribble(
     ~coding, ~definition, ~anti_max, ~pro_min,
@@ -777,6 +1038,53 @@ build_paper_outputs <- function(
           conf.high,
           p.value
         )
+    }
+  )
+
+  interaction_specs <- tribble(
+    ~coding, ~definition, ~anti_max, ~pro_min, ~outcome, ~source_weight,
+    "narrow", "0-2 vs 8-10", 2, 8, "competence", "unweighted",
+    "primary", "0-3 vs 7-10", 3, 7, "competence", "unweighted",
+    "primary", "0-3 vs 7-10", 3, 7, "competence", "waga1",
+    "primary", "0-3 vs 7-10", 3, 7, "competence", "waga2",
+    "primary", "0-3 vs 7-10", 3, 7, "advantage", "unweighted",
+    "broad", "0-4 vs 6-10", 4, 6, "competence", "unweighted"
+  )
+
+  alignment_interactions <- purrr::pmap_dfr(
+    interaction_specs,
+    function(coding, definition, anti_max, pro_min, outcome, source_weight) {
+      interaction_data <- conjoint %>%
+        add_political_alignment(
+          prepare_respondent_groups(
+            respondent_path,
+            anti_max = anti_max,
+            pro_min = pro_min
+          )
+        )
+      formula <- reformulate(
+        c(
+          "age", "sex", "occupation", "key_issue", "office",
+          "respondent_gov", "municip * political_alignment"
+        ),
+        response = outcome
+      )
+      fit <- fit_lpm(interaction_data, formula, source_weight)
+
+      collect_alignment_interactions(
+        fit,
+        coding,
+        definition,
+        outcome,
+        recode(
+          source_weight,
+          unweighted = "unweighted",
+          waga1 = "census_margins",
+          waga2 = "census_vote_2023"
+        ),
+        n_distinct(interaction_data$ID),
+        nrow(interaction_data)
+      )
     }
   )
 
@@ -857,11 +1165,15 @@ build_paper_outputs <- function(
     main_effects,
     office_mms,
     office_interaction_test,
+    office_pairwise,
     alignment_mms,
     alignment_differences,
     alignment_sensitivity,
+    alignment_interactions,
+    alignment_cross_profile,
     robustness,
     balance,
+    respondent_balance,
     advantage_distribution
   )
 
@@ -882,14 +1194,27 @@ build_paper_outputs <- function(
     office_interaction_test,
     file.path(reports_dir, "paper_office_interaction_test.csv")
   )
+  write_csv(office_pairwise, file.path(reports_dir, "paper_office_pairwise.csv"))
   write_csv(alignment_mms, file.path(reports_dir, "paper_alignment_marginal_means.csv"))
   write_csv(alignment_differences, file.path(reports_dir, "paper_alignment_differences.csv"))
   write_csv(
     alignment_sensitivity,
     file.path(reports_dir, "paper_alignment_sensitivity.csv")
   )
+  write_csv(
+    alignment_interactions,
+    file.path(reports_dir, "paper_alignment_interaction_tests.csv")
+  )
+  write_csv(
+    alignment_cross_profile,
+    file.path(reports_dir, "paper_alignment_cross_profile.csv")
+  )
   write_csv(robustness, file.path(reports_dir, "paper_robustness.csv"))
   write_csv(balance, file.path(reports_dir, "paper_balance.csv"))
+  write_csv(
+    respondent_balance,
+    file.path(reports_dir, "paper_respondent_balance.csv")
+  )
   write_csv(
     advantage_distribution,
     file.path(reports_dir, "paper_advantage_distribution.csv")
@@ -898,27 +1223,31 @@ build_paper_outputs <- function(
 
   main_plot <- make_main_effect_plot(main_effects)
   office_plot <- make_office_plot(office_mms)
-  interaction_plot <- make_interaction_plot(alignment_mms, alignment_differences)
+  interaction_plot <- make_interaction_plot(
+    alignment_mms,
+    alignment_differences,
+    alignment_cross_profile
+  )
 
   ggsave(
     file.path(figures_dir, "paper_main_effects.png"),
     main_plot,
-    width = 9,
-    height = 8.5,
+    width = 10,
+    height = 9,
     dpi = 600
   )
   ggsave(
     file.path(figures_dir, "paper_municip_by_office.png"),
     office_plot,
-    width = 8,
-    height = 4.8,
+    width = 9,
+    height = 5.2,
     dpi = 600
   )
   ggsave(
     file.path(figures_dir, "paper_cue_heterogeneity.png"),
     interaction_plot,
-    width = 9,
-    height = 7.2,
+    width = 10,
+    height = 8,
     dpi = 600
   )
 
@@ -930,11 +1259,15 @@ build_paper_outputs <- function(
         "paper_main_effects.csv",
         "paper_municip_by_office.csv",
         "paper_office_interaction_test.csv",
+        "paper_office_pairwise.csv",
         "paper_alignment_marginal_means.csv",
         "paper_alignment_differences.csv",
         "paper_alignment_sensitivity.csv",
+        "paper_alignment_interaction_tests.csv",
+        "paper_alignment_cross_profile.csv",
         "paper_robustness.csv",
         "paper_balance.csv",
+        "paper_respondent_balance.csv",
         "paper_advantage_distribution.csv",
         "paper_full_model_estimates.csv"
       )

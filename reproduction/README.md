@@ -1,6 +1,6 @@
-# Local Roots and National Political Alignment
+# Local Roots Within a National Political Divide
 
-This directory reproduces the linear probability model results and figures for the Quarto paper "Local Roots and National Political Alignment: Evidence from a Split-Ballot Candidate Conjoint in Poland."
+This directory reproduces the linear probability model results and figures for the Quarto paper "Local Roots Within a National Political Divide: Evidence from a Split-Ballot Candidate Conjoint in Poland."
 
 ## Contents
 
@@ -8,7 +8,7 @@ This directory reproduces the linear probability model results and figures for t
 - `R/analysis.R` contains the data preparation, models, estimands, checks, and plots.
 - `_targets.R` defines the analysis workflow.
 - `results/` contains numerical outputs.
-- `../paper_draft/` contains the manuscript and receives the three generated figures.
+- `../paper_draft/v2/` contains the revised manuscript and receives the three generated figures.
 - `tests/check_reproduction.R` checks the analysis outputs and manuscript inputs.
 
 The package excludes exploratory Bayesian, causal-forest, and pairwise-interaction analyses that are not required for the manuscript.
@@ -35,7 +35,7 @@ Then run the artifact check:
 Rscript tests/check_reproduction.R
 ~~~
 
-Numerical estimates are written to `results/`; figures are written to `../paper_draft/figs/`. Render the paper separately with `quarto render index.qmd` from `paper_draft/`.
+Numerical estimates are written to `results/`; figures are written to `../paper_draft/v2/figs/`. Render the paper separately with `quarto render index.qmd` from `paper_draft/v2/`.
 
 Check pipeline status with:
 

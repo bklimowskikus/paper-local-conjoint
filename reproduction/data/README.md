@@ -12,7 +12,7 @@ Wave 1 candidate-conjoint profiles. The analysis uses:
 - advantage: strength of the selected profile's advantage;
 - Census-margin post-stratification weight (source column `waga1`);
 - Census and reported 2023-vote post-stratification weight (source column `waga2`);
-- age, sex, occupation, government, municip, and key_issue: randomized candidate attributes;
+- age, sex, occupation, government, municip, and key_issue: randomized candidate attributes (`sex`: 1 = woman, 2 = man);
 - conjoint_split: randomized office prompt.
 
 The validated analysis contains 17,656 profiles from 2,207 respondents.

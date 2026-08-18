@@ -38,7 +38,7 @@ list(
     build_paper_outputs(
       conjoint_data,
       respondent_data,
-      figures_dir = "../paper_draft/figs"
+      figures_dir = "../paper_draft/v2/figs"
     ),
     format = "file"
   )
