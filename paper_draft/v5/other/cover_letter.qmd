@@ -1,0 +1,37 @@
+---
+format:
+  pdf:
+    pdf-engine: xelatex
+    geometry:
+      - margin=1in
+    keep-tex: false
+fontsize: 11pt
+papersize: a4
+execute:
+  echo: false
+---
+
+```{=latex}
+\thispagestyle{empty}
+```
+
+Dear Editors,
+
+Please consider our manuscript, *Local Roots Within a National Political Divide: Evidence from a Split-Ballot Candidate Conjoint in Poland*, for publication in *Electoral Studies*. The paper examines how municipal connection and government-opposition alignment shape candidate evaluations in Poland. In a split-ballot candidate conjoint experiment, 2,207 respondents completed four paired comparisons for member of parliament, mayor, or municipal councillor.
+
+The paper speaks to research on candidate evaluation, local candidates, and national political divides. Observed local advantages may reflect information, campaign activity, personal acquaintance, media exposure, and local mobilization. The randomized profiles compare the complete municipal-connection statements and the government-opposition cue respondents receive while holding the other candidate attributes constant. Varying the office prompt also tests whether the local-root gradient is confined to local offices.
+
+The main findings are:
+
+- Relative to an outsider profile, residence in the municipality for a few years increased the probability of selection by 13.4 percentage points, and lifelong residence increased it by 18.6 points. The gradient appeared in all three office prompts; we did not detect office differences.
+- Among clearly positioned cases, aligned profiles were 27.9 to 33.2 points more likely to be selected than non-aligned profiles. These alignment differences were larger than the local-residence contrasts. An aligned outsider was 13.7 points more likely to be selected than a non-aligned lifelong resident.
+- The evidence for a larger lifelong-residence bonus among aligned pairs is exploratory. Its size changes under alternative alignment cutoffs, and it does not retain adjusted significance in the weighted models.
+
+The results are relevant to *Electoral Studies* because the paper compares territorial and national political cues in one experimental design. It finds a local-root gradient across all three prompts, but larger observed contrasts for political alignment. The estimates concern the complete profile statements presented to respondents, not separate effects of residence, campaign effort, personal acquaintance, or social-network mechanisms.
+
+The accompanying replication package reproduces the analyses and figures. The manuscript has not been published or submitted elsewhere.
+
+Sincerely,
+
+Bartłomiej Klimowski-Kuś  
+Adam Gendźwiłł

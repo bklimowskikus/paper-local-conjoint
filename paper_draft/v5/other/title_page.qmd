@@ -1,0 +1,65 @@
+---
+format:
+  pdf:
+    pdf-engine: xelatex
+    geometry:
+      - margin=1in
+    keep-tex: false
+fontsize: 11pt
+papersize: a4
+execute:
+  echo: false
+---
+
+```{=latex}
+\thispagestyle{empty}
+\begin{center}
+{\LARGE\bfseries Local Roots Within a National Political Divide:\\[0.3em]
+Evidence from a Split-Ballot Candidate Conjoint in Poland\par}
+\end{center}
+
+\vspace{2.25cm}
+
+\noindent
+\begin{minipage}[t]{0.46\textwidth}
+\textbf{Bartłomiej Klimowski-Kuś\textsuperscript{*}}\\[0.8em]
+Affiliation: [insert affiliation]\\
+ORCID: [insert ORCID]\\
+Email: [insert email]
+\end{minipage}\hfill
+\begin{minipage}[t]{0.46\textwidth}
+\textbf{Adam Gendźwiłł}\\[0.8em]
+Affiliation: [insert affiliation]\\
+ORCID: [insert ORCID]\\
+Email: [insert email]
+\end{minipage}
+
+\vspace{0.6em}
+
+\noindent\footnotesize \textsuperscript{*} Corresponding author.
+
+\vfill
+
+\noindent\textbf{Word counts}\\[0.5em]
+\textbf{Manuscript totals}\\
+4,503 words (text + notes + references)\\
+3,443 words (text + notes)\\
+5,479 words (text + notes + appendix + references)
+
+\vspace{0.75em}
+
+\noindent\textbf{Specific totals}\\
+3,443 words in text body\\
+1,060 words in references\\
+976 words in appendix
+
+\vspace{0.75em}
+
+\noindent\textbf{Overall totals}\\
+5,683 words in entire document\\
+204 words in abstract
+
+\vspace{0.75em}
+
+\noindent\footnotesize Word counts calculated with \url{https://github.com/andrewheiss/quarto-wordcount}.
+```

@@ -1,0 +1,16 @@
+# [[Local Conjoint Paper]]
+- **Contribution:**
+	- Trzy poziomy lokalności
+	- Trzy urzędy
+	- Interakcja alignment + roots:
+		- Zmienić na *political alignment*
+- Narracja ma być podporządkowana trzem *contributions*
+- Braki w literaturze podporządkowane pod to
+- Za dużo detali metodologicznych w *introduction* i drugiej sekcji:
+	- Przenieść kwestie badawcze do sekcji 3
+- Operacjonalizacja rząd–opozycja jest raczej standardowa - nie rozwodzić się nad tym.
+- Sformułowanie *Outside-within*:
+	- „Każdy kandydat może zyskać na lokalności, ale *aligned* zyskują więcej”
+	- znaleźć jakieś bardziej naturalne sformułowanie
+- `outsider-with-local-knowledge` → `outsider` (za dużo specyficznych sformułowań, jak jest więcej to je troche zredukować)
+- Framing: bardziej podkreślić, ze to analiza eksploracyjna

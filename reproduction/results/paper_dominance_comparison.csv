@@ -1,0 +1,2 @@
+contrast,estimate,conf.low,conf.high,p.value,bootstrap_unit,bootstrap_replicates,test
+Municipal roots minus government-opposition cue,0.08817447446195276,-0.030304594623194774,0.20571392985214018,0.142,respondent,4999,two-sided centered bootstrap

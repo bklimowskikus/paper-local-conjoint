@@ -8,19 +8,30 @@ This directory reproduces the linear probability model results and figures for t
 - `R/analysis.R` contains the data preparation, models, estimands, checks, and plots.
 - `_targets.R` defines the analysis workflow.
 - `results/` contains numerical outputs.
-- `../paper_draft/v2/` contains the revised manuscript and receives the three generated figures.
-- `tests/check_reproduction.R` checks the analysis outputs and manuscript inputs.
+- `results/figures/` contains the four generated figures.
+- `tests/check_reproduction.R` checks the analysis outputs and generated figures.
 
 The package excludes exploratory Bayesian, causal-forest, and pairwise-interaction analyses that are not required for the manuscript.
 
 ## Requirements
 
-- R 4.3.3 or a compatible later release
-- Quarto
+- R 4.3.3 (or a compatible later release).
+- The `renv` package. If it is not already installed, run:
+
+  ~~~r
+  install.packages("renv")
+  ~~~
+
+- The supplied raw inputs `data/conjoint_1fala.dta` and
+  `data/PLSW_1-2fala_final.dta` (described in `data/README.md`).
+- Internet access the first time `renv::restore()` installs the locked R
+  packages, plus write access to `results/`.
+
+Quarto is not required here because this folder does not render the manuscript.
 
 Exact R package versions are recorded in `renv.lock`.
 
-## Reproduce the paper
+## Reproduce analysis artifacts
 
 Run these commands from this directory:
 
@@ -35,15 +46,57 @@ Then run the artifact check:
 Rscript tests/check_reproduction.R
 ~~~
 
-Numerical estimates are written to `results/`; figures are written to `../paper_draft/v2/figs/`. Render the paper separately with `quarto render index.qmd` from `paper_draft/v2/`.
+Numerical estimates are written to `results/`; four figures are written to `results/figures/`. This folder does not render or validate the manuscript.
 
-Check pipeline status with:
+## Working with `targets`
+
+`targets` records completed work in `_targets/`. `tar_make()` rebuilds only targets whose inputs or code have changed.
+
+List the three pipeline targets and the code they run:
+
+~~~r
+targets::tar_manifest(fields = c("name", "command"))
+~~~
+
+Check what would run before rebuilding:
 
 ~~~r
 targets::tar_outdated()
 ~~~
 
 An empty result from targets::tar_outdated() means all targets are current.
+
+To regenerate the final analysis outputs deliberately, invalidate that target and rebuild:
+
+~~~r
+targets::tar_invalidate(analysis_outputs)
+targets::tar_make()
+~~~
+
+Inspect the files recorded for the completed analysis target:
+
+~~~r
+targets::tar_read(analysis_outputs)
+~~~
+
+## Output map
+
+The table maps generated CSVs to the figures and tables in the paper. Manuscript
+labels are shown in parentheses because displayed table numbers can change when
+the paper is rendered.
+
+| Reproduction output | Generated figure | Paper table or use |
+|:---|:---|:---|
+| `paper_main_effects.csv` | Marginal means and AMCEs (`paper_main_effects.png`) | Figure `fig-main-effects`; its underlying pooled coefficients are in `paper_full_model_estimates.csv` and the pooled-model table (`tbl-model-estimates`). |
+| `paper_dominance.csv`, `paper_dominance_comparison.csv` | General dominance weights (`paper_dominance.png`) | Figure `fig-dominance`; no separate paper table. |
+| `paper_municip_by_office.csv` | Municipal roots by office (`paper_municip_by_office.png`) | Figure `fig-office`; no separate paper table. `paper_office_interaction_test.csv` and `paper_office_pairwise.csv` support the text interpretation. |
+| `paper_alignment_marginal_means.csv`, `paper_alignment_differences.csv`, `paper_alignment_cross_profile.csv` | Municipal roots and political alignment (`paper_cue_heterogeneity.png`) | Figure `fig-heterogeneity`; pairwise-contrast table (`tbl-figure3-pairwise`) uses `paper_alignment_differences.csv`. |
+| `paper_balance.csv` | — | Randomized attribute-level shares by office (`tbl-balance`). |
+| `paper_advantage_distribution.csv` | — | Distribution of the selected profile's advantage rating (`tbl-advantage-distribution`). |
+| `paper_alignment_sensitivity.csv` | — | Alignment-coding sensitivity (`tbl-alignment-sensitivity`). |
+| `paper_alignment_interaction_tests.csv` | — | Interaction robustness (`tbl-interaction-robustness`). |
+| `paper_robustness.csv` | — | Robustness of focal cue estimates (`tbl-robustness`). |
+| `paper_design_summary.csv`, `paper_respondent_balance.csv` | — | Sample-description and diagnostic outputs used in text and checks; no standalone paper table. |
 
 ## Analysis
 

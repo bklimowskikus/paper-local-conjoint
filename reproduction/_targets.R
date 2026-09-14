@@ -4,6 +4,7 @@ tar_option_set(
   packages = c(
     "broom",
     "dplyr",
+    "dominanceanalysis",
     "ggplot2",
     "haven",
     "marginaleffects",
@@ -38,7 +39,7 @@ list(
     build_paper_outputs(
       conjoint_data,
       respondent_data,
-      figures_dir = "../paper_draft/v2/figs"
+      figures_dir = "results/figures"
     ),
     format = "file"
   )

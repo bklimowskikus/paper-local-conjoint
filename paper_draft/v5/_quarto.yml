@@ -1,0 +1,32 @@
+project:
+  type: manuscript
+
+format:
+  wordcount-html:
+    theme: [default, paper.scss]
+    toc: true
+    toc-depth: 2
+    number-sections: true
+    code-fold: true
+    citations-hover: true
+    footnotes-hover: true
+    comments:
+      hypothesis:
+        theme: clean
+        openSidebar: false
+        showHighlights: whenSidebarOpen
+  elsevier-pdf:
+    pdf-engine: xelatex
+    cite-method: citeproc
+    journal:
+      formatting: preprint
+      model: 3p
+      layout: onecolumn
+      cite-style: number
+
+bibliography: references.bib
+
+execute:
+  echo: false
+  warning: false
+  message: false

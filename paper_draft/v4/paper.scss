@@ -1,0 +1,177 @@
+/*-- scss:defaults --*/
+
+$font-family-base:
+  Georgia,
+  "Times New Roman",
+  Times,
+  serif;
+
+$headings-font-family:
+  -apple-system,
+  BlinkMacSystemFont,
+  "Segoe UI",
+  Helvetica,
+  Arial,
+  sans-serif;
+
+$body-bg: #ffffff;
+$body-color: #27313d;
+$link-color: #0969da;
+$link-hover-color: #0550ae;
+
+/* Wider reading column while keeping useful room for margins/notes. */
+$grid-body-width: 940px;
+$grid-margin-width: 230px;
+$grid-column-gutter-width: 2.5rem;
+
+
+/*-- scss:rules --*/
+
+html,
+body,
+#quarto-content,
+.page-columns,
+.quarto-container,
+main.content {
+  background-color: #ffffff !important;
+}
+
+body {
+  font-size: 17px;
+  line-height: 1.68;
+}
+
+main {
+  padding-top: 1.75rem;
+  padding-bottom: 3rem;
+}
+
+/* Keep links recognizably link-like, especially citations and references. */
+a {
+  text-underline-offset: 0.16em;
+  text-decoration-thickness: 0.06em;
+}
+
+a:hover {
+  text-decoration-thickness: 0.1em;
+}
+
+.citation a,
+#refs a,
+.references a {
+  color: $link-color;
+}
+
+h1,
+h2,
+h3 {
+  color: #17365d;
+  font-weight: 650;
+  letter-spacing: -0.018em;
+}
+
+h1 {
+  font-size: 2.15rem;
+  line-height: 1.18;
+}
+
+h2 {
+  margin-top: 2.6rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 2px solid #c8d9ee;
+}
+
+h3 {
+  margin-top: 1.8rem;
+}
+
+p {
+  margin-bottom: 1.05rem;
+}
+
+blockquote {
+  margin: 1.5rem 0;
+  border-left: 3px solid #7aa7d9;
+  padding: 0.15rem 0 0.15rem 1.15rem;
+  color: #4b5d70;
+  background: linear-gradient(90deg, rgba(9, 105, 218, 0.055), transparent 70%);
+}
+
+.quarto-title-block {
+  margin-bottom: 2rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid #d8e2ef;
+}
+
+.quarto-title-meta {
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Helvetica,
+    Arial,
+    sans-serif;
+  font-size: 0.9rem;
+  color: #5f6f82;
+}
+
+.abstract {
+  margin: 2rem 0 2.25rem;
+  padding: 1.15rem 1.35rem;
+  border-left: 4px solid #7aa7d9;
+  background: #f1f6fc;
+}
+
+.abstract-title {
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Helvetica,
+    Arial,
+    sans-serif;
+  font-weight: 650;
+  color: #17365d;
+}
+
+code {
+  font-size: 0.88em;
+  padding: 0.08em 0.24em;
+  border-radius: 0.2rem;
+  background: #edf2f7;
+}
+
+figure {
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+}
+
+figcaption,
+.table-caption {
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
+#refs {
+  font-size: 0.96em;
+}
+
+#refs .csl-entry {
+  margin-bottom: 0.8rem;
+}
+
+#refs .csl-left-margin {
+  color: $link-color;
+  font-family: $headings-font-family;
+}
+
+/* Slightly tighten the page on smaller screens. */
+@media (max-width: 991.98px) {
+  body {
+    font-size: 16.5px;
+  }
+
+  .abstract {
+    padding: 1rem;
+  }
+}

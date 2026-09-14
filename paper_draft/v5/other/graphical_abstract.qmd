@@ -1,0 +1,78 @@
+---
+title: "Local roots within a national political divide"
+subtitle: "Evidence from a split-ballot candidate conjoint in Poland"
+author: ""
+format:
+  poster-typst:
+    paper-size: a0
+    num-columns: 1
+    body-font-size: 40
+    orientation: landscape
+    footer-color: "1f4e79"
+    show-footer: "false"
+    show-header: "false"
+execute:
+  echo: false
+---
+
+```{=typst}
+#block(
+  width: 100%,
+  fill: rgb("1f4e79"),
+  inset: (x: 16pt, y: 10pt),
+)[
+  #set text(size: 64pt, fill: white, weight: 700)
+  Local roots within a national political divide
+]
+#v(8pt)
+#text(size: 45pt)[Municipal roots increase candidate support across the three office prompts, but they do not offset political mismatch. An aligned outsider is more likely to be selected than a non-aligned lifelong resident.]
+#v(18pt)
+
+#grid(
+  columns: (1fr, 1fr),
+  gutter: 0.7in,
+  [
+    #heading(level: 1)[Question and design]
+    How do municipal connection and political alignment shape evaluations of candidates for MP, mayor, and municipal councillor?
+
+
+    In a split-ballot candidate conjoint experiment, 2,207 Polish respondents completed four paired-profile tasks (8,828 choices and 17,656 evaluated profiles). Each respondent was randomly assigned to one office prompt: MP, mayor, or municipal councillor. Every prompt randomized the same six candidate attributes.
+
+    The municipal-connection treatment compared candidates who lived locally since birth, had lived locally for a few years, or lived elsewhere while declaring knowledge of local issues. The third statement is labelled the outsider profile. The experiment estimates responses to these complete profile statements, not residence alone.
+
+    #heading(level: 1)[Overall candidate evaluations]
+    #figure(
+      image("figures/paper_main_effects.png", width: 68%),
+      caption: [Marginal means and average marginal component effects for candidate attributes.],
+    )
+#v(0.15in)
+
+    Municipal roots produced the largest point share of within-model explained variance (44.7%), followed by the government-opposition cue (35.9%). Their 8.8-point difference was uncertain (95% CI: -3.0 to 20.6; p = .142), so the ranking is descriptive rather than decisive.
+
+    #heading(level: 1)[Municipal roots increase candidate support]
+    Relative to the outsider profile, living locally for a few years raises the probability of selection by *13.4 points* (95% CI: 11.6 to 15.2). Living locally since birth raises it by *18.6 points* (95% CI: 16.7 to 20.4). The corresponding marginal means are 39.3%, 52.7%, and 57.9%.
+
+    These effects concern stated comparative suitability for office, not an actual vote. Randomization separates the profile statements from canvassing, acquaintance, media exposure, and local mobilization, but does not identify those mechanisms.
+  ],
+  [
+    #heading(level: 1)[Political alignment]
+    Among clearly pro- and anti-government profiles and respondents, aligned candidates gain *27.9 to 33.2 points* over non-aligned candidates. The contrast is 27.9 points for outsider profiles, 30.8 for candidates living locally for a few years, and 33.2 for lifelong residents.
+
+    An aligned outsider is *13.7 points* more likely to be selected than a non-aligned lifelong resident. Local roots therefore increase support in both alignment groups, but they do not compensate for political mismatch.
+
+    #figure(
+      image("figures/paper_cue_heterogeneity.png", width: 68%),
+      caption: [Municipal roots and government-opposition alignment among clearly positioned cases.],
+    )
+#v(0.15in)
+
+    #heading(level: 1)[Does office change the local-roots gradient?]
+    The local-roots gradient appears for MPs, mayors, and councillors. For residence since birth relative to the outsider profile, the estimates are 19.0 points for MPs, 17.2 for mayors, and 19.5 for councillors. The omnibus office interaction is not detected, F(4, 2185) = 0.661, p = .619, and none of nine pairwise comparisons is significant after Holm adjustment.
+
+    The 5.3-point primary interaction between lifelong residence and political alignment is exploratory. It changes under alternative alignment cutoffs and does not retain adjusted significance in the weighted models.
+
+    #heading(level: 1)[Conclusion]
+    Polish respondents distinguish graded municipal connections. Local roots matter across the three tested offices and political alignments, but the design does not show that they outweigh the national government-opposition divide or explain why voters value local candidates.
+  ],
+)
+```

@@ -370,6 +370,192 @@ collect_main_estimands <- function(fit) {
     arrange(attribute_order, level_order, estimand)
 }
 
+dominance_from_crossproducts <- function(xtx, xty, yty, group_columns) {
+  group_count <- length(group_columns)
+  masks <- 0:(2^group_count - 1L)
+  members <- lapply(masks, function(mask) {
+    which(as.logical(intToBits(mask)[seq_len(group_count)]))
+  })
+  subset_sizes <- lengths(members)
+  r_squared <- vapply(members, function(groups) {
+    if (!length(groups)) {
+      return(0)
+    }
+    columns <- unlist(group_columns[groups], use.names = FALSE)
+    coefficients <- solve(
+      xtx[columns, columns, drop = FALSE],
+      xty[columns]
+    )
+    sum(xty[columns] * coefficients) / yty
+  }, numeric(1))
+
+  setNames(vapply(seq_len(group_count), function(group) {
+    group_bit <- bitwShiftL(1L, group - 1L)
+    eligible <- bitwAnd(masks, group_bit) == 0L
+    increments <-
+      r_squared[bitwOr(masks[eligible], group_bit) + 1L] -
+      r_squared[masks[eligible] + 1L]
+    mean(vapply(0:(group_count - 1L), function(size) {
+      mean(increments[subset_sizes[eligible] == size])
+    }, numeric(1)))
+  }, numeric(1)), names(group_columns))
+}
+
+cluster_crossproducts <- function(design, outcome, respondent) {
+  column_count <- ncol(design)
+  row_crossproducts <- do.call(cbind, lapply(seq_len(column_count), function(column) {
+    design * design[, column]
+  }))
+
+  list(
+    xx = rowsum(row_crossproducts, respondent, reorder = FALSE),
+    xy = rowsum(design * outcome, respondent, reorder = FALSE),
+    yy = drop(rowsum(outcome^2, respondent, reorder = FALSE))
+  )
+}
+
+centered_bootstrap_p <- function(estimate, draws) {
+  (1 + sum(abs(draws - estimate) >= abs(estimate))) / (length(draws) + 1)
+}
+
+collect_dominance <- function(
+  data,
+  bootstrap_replicates = 4999L,
+  seed = 20240801L
+) {
+  profile_formula <- ~age + sex + occupation + government + municip + key_issue
+  design_matrix <- model.matrix(profile_formula, data)
+  column_terms <- attr(design_matrix, "assign")[-1]
+  design_matrix <- design_matrix[, -1, drop = FALSE]
+
+  respondent <- as.integer(droplevels(data$ID))
+  respondent_sizes <- tabulate(respondent)
+  design_means <- rowsum(design_matrix, respondent) / respondent_sizes
+  outcome_means <- rowsum(data$competence, respondent) / respondent_sizes
+  within_design <- design_matrix - design_means[respondent, , drop = FALSE]
+  within_outcome <- data$competence - outcome_means[respondent, 1]
+
+  within_data <- data.frame(
+    outcome = within_outcome,
+    within_design,
+    check.names = FALSE
+  )
+  within_fit <- lm(
+    reformulate(
+      colnames(within_design),
+      response = "outcome",
+      intercept = FALSE
+    ),
+    data = within_data
+  )
+  within_fit$call$data <- NULL
+  term_labels <- attr(terms(profile_formula), "term.labels")
+  grouped_terms <- setNames(
+    vapply(
+      seq_along(term_labels),
+      function(index) {
+        paste(colnames(within_design)[column_terms == index], collapse = " + ")
+      },
+      character(1)
+    ),
+    term_labels
+  )
+  group_columns <- setNames(
+    split(seq_len(ncol(within_design)), column_terms),
+    term_labels
+  )
+  dominance <- dominanceanalysis::dominanceAnalysis(
+    within_fit,
+    terms = grouped_terms,
+    newdata = within_data
+  )
+  contributions <- dominanceanalysis::averageContribution(
+    dominance,
+    fit.functions = "r2"
+  )$r2
+
+  custom_contributions <- dominance_from_crossproducts(
+    crossprod(within_design),
+    drop(crossprod(within_design, within_outcome)),
+    sum(within_outcome^2),
+    group_columns
+  )
+  stopifnot(isTRUE(all.equal(
+    unname(custom_contributions[names(contributions)]),
+    unname(contributions),
+    tolerance = 1e-10
+  )))
+
+  cluster_stats <- cluster_crossproducts(
+    within_design,
+    within_outcome,
+    respondent
+  )
+  set.seed(seed)
+  bootstrap_shares <- vapply(seq_len(bootstrap_replicates), function(replicate) {
+    cluster_counts <- tabulate(
+      sample.int(length(respondent_sizes), length(respondent_sizes), replace = TRUE),
+      nbins = length(respondent_sizes)
+    )
+    replicate_contributions <- dominance_from_crossproducts(
+      matrix(
+        drop(crossprod(cluster_counts, cluster_stats$xx)),
+        nrow = ncol(within_design)
+      ),
+      drop(crossprod(cluster_counts, cluster_stats$xy)),
+      sum(cluster_counts * cluster_stats$yy),
+      group_columns
+    )
+    replicate_contributions / sum(replicate_contributions)
+  }, numeric(length(group_columns)))
+  confidence_intervals <- t(apply(
+    bootstrap_shares,
+    1,
+    quantile,
+    probs = c(0.025, 0.975),
+    names = FALSE
+  ))
+
+  point_shares <- contributions / sum(contributions)
+  comparison_draws <-
+    bootstrap_shares["municip", ] - bootstrap_shares["government", ]
+  comparison_estimate <- point_shares["municip"] - point_shares["government"]
+  roots_government_comparison <- tibble(
+    contrast = "Municipal roots minus government-opposition cue",
+    estimate = unname(comparison_estimate),
+    conf.low = unname(quantile(comparison_draws, 0.025, names = FALSE)),
+    conf.high = unname(quantile(comparison_draws, 0.975, names = FALSE)),
+    p.value = centered_bootstrap_p(comparison_estimate, comparison_draws),
+    bootstrap_unit = "respondent",
+    bootstrap_replicates = as.integer(bootstrap_replicates),
+    test = "two-sided centered bootstrap"
+  )
+
+  result <- tibble(
+    model = "respondent_fixed_effects",
+    attribute = names(contributions),
+    general_dominance = as.numeric(contributions),
+    within_r_squared = summary(within_fit)$r.squared,
+    conf.low = confidence_intervals[names(contributions), 1],
+    conf.high = confidence_intervals[names(contributions), 2],
+    bootstrap_unit = "respondent",
+    bootstrap_replicates = as.integer(bootstrap_replicates)
+  ) %>%
+    left_join(attribute_lookup, by = "attribute") %>%
+    mutate(
+      relative_importance = general_dominance / sum(general_dominance)
+    ) %>%
+    arrange(desc(relative_importance)) %>%
+    mutate(rank = row_number()) %>%
+    select(
+      model, rank, attribute, attribute_nice, general_dominance,
+      relative_importance, conf.low, conf.high, within_r_squared,
+      bootstrap_unit, bootstrap_replicates
+    )
+  attr(result, "roots_government_comparison") <- roots_government_comparison
+  result
+}
+
 nice_office <- function(x) {
   recode(as.character(x), mp = "MP", mayor = "Mayor", councillor = "Councillor")
 }
@@ -483,6 +669,85 @@ make_main_effect_plot <- function(main_effects) {
     plot_layout(widths = c(1.2, 1))
 }
 
+make_dominance_plot <- function(dominance, dominance_comparison) {
+  plot_data <- dominance %>%
+    mutate(attribute_nice = reorder(attribute_nice, relative_importance))
+  roots_position <- as.numeric(plot_data$attribute_nice[plot_data$attribute == "municip"])
+  government_position <- as.numeric(
+    plot_data$attribute_nice[plot_data$attribute == "government"]
+  )
+  bracket_position <- max(dominance$conf.high) + 0.065
+  p_label <- if (dominance_comparison$p.value < 0.001) {
+    "p < .001"
+  } else {
+    sub("0\\.", ".", sprintf("p = %.3f", dominance_comparison$p.value))
+  }
+
+  plot_data %>%
+    ggplot(aes(x = attribute_nice, y = relative_importance)) +
+    geom_pointrange(
+      aes(ymin = conf.low, ymax = conf.high),
+      linewidth = 0.45,
+      color = "black"
+    ) +
+    geom_text(
+      aes(
+        y = conf.high,
+        label = label_percent(accuracy = 0.1)(relative_importance)
+      ),
+      nudge_y = 0.012,
+      hjust = 0,
+      size = 3
+    ) +
+    annotate(
+      "segment",
+      x = government_position,
+      xend = roots_position,
+      y = bracket_position,
+      yend = bracket_position,
+      linewidth = 0.4
+    ) +
+    annotate(
+      "segment",
+      x = government_position,
+      xend = government_position,
+      y = bracket_position - 0.008,
+      yend = bracket_position,
+      linewidth = 0.4
+    ) +
+    annotate(
+      "segment",
+      x = roots_position,
+      xend = roots_position,
+      y = bracket_position - 0.008,
+      yend = bracket_position,
+      linewidth = 0.4
+    ) +
+    annotate(
+      "text",
+      x = mean(c(government_position, roots_position)),
+      y = bracket_position + 0.012,
+      label = p_label,
+      hjust = 0,
+      size = 3
+    ) +
+    scale_y_continuous(
+      labels = label_percent(accuracy = 1),
+      limits = c(0, bracket_position + 0.07),
+      expand = expansion(mult = c(0, 0))
+    ) +
+    coord_flip(clip = "off") +
+    labs(
+      x = NULL,
+      y = "Share of within-model explained variance"
+    ) +
+    theme_paper() +
+    theme(
+      legend.position = "none",
+      plot.margin = margin(5.5, 18, 5.5, 5.5)
+    )
+}
+
 make_office_plot <- function(office_mms) {
   plot_data <- office_mms %>%
     mutate(
@@ -499,7 +764,7 @@ make_office_plot <- function(office_mms) {
 
   ggplot(
     plot_data,
-    aes(x = estimate, y = municip_nice, color = office_nice, shape = office_nice)
+    aes(x = estimate, y = municip_nice, shape = office_nice, group = office_nice)
   ) +
     geom_vline(xintercept = 0.5, linewidth = 0.35, color = "grey55") +
     geom_pointrange(
@@ -509,12 +774,10 @@ make_office_plot <- function(office_mms) {
     ) +
     scale_x_continuous(labels = label_percent(accuracy = 1)) +
     coord_cartesian(xlim = c(0.25, 0.72)) +
-    scale_color_manual(values = c("MP" = "#0072B2", "Mayor" = "#E69F00", "Councillor" = "#009E73")) +
     scale_shape_manual(values = c("MP" = 16, "Mayor" = 17, "Councillor" = 15)) +
     labs(
       x = "Predicted probability of being selected as better suited",
       y = NULL,
-      color = NULL,
       shape = NULL
     ) +
     theme_paper()
@@ -609,7 +872,7 @@ make_interaction_plot <- function(
     ) %>%
     pull(estimate)
 
-  cross_profile_color <- "#D55E00"
+  cross_profile_color <- "black"
   cross_profile_bracket <- function(y_bottom, y_top) {
     list(
       annotate(
@@ -758,6 +1021,8 @@ validate_results <- function(
   conjoint,
   alignment_data,
   main_effects,
+  dominance,
+  dominance_comparison,
   office_mms,
   office_interaction_test,
   office_pairwise,
@@ -778,6 +1043,19 @@ validate_results <- function(
     nrow(alignment_data) == 8712L,
     nrow(main_effects) == 42L,
     !anyDuplicated(main_effects[c("attribute", "level", "estimand")]),
+    nrow(dominance) == nrow(attribute_lookup),
+    identical(dominance$rank, seq_len(nrow(dominance))),
+    isTRUE(all.equal(sum(dominance$relative_importance), 1, tolerance = 1e-10)),
+    identical(unique(dominance$bootstrap_unit), "respondent"),
+    identical(unique(dominance$bootstrap_replicates), 4999L),
+    all(dominance$conf.low <= dominance$relative_importance),
+    all(dominance$relative_importance <= dominance$conf.high),
+    nrow(dominance_comparison) == 1L,
+    dominance_comparison$estimate > 0,
+    dominance_comparison$conf.low <= dominance_comparison$estimate,
+    dominance_comparison$estimate <= dominance_comparison$conf.high,
+    dominance_comparison$p.value >= 0,
+    dominance_comparison$p.value <= 1,
     !anyDuplicated(office_mms[c("office", "municip")]),
     nrow(office_interaction_test) == 1L,
     identical(office_interaction_test$term, "municip:office"),
@@ -828,7 +1106,7 @@ build_paper_outputs <- function(
   conjoint_path,
   respondent_path,
   results_dir = "results",
-  figures_dir = "../paper_draft/v2/figs"
+  figures_dir = "results/figures"
 ) {
   reports_dir <- results_dir
 
@@ -857,6 +1135,8 @@ build_paper_outputs <- function(
   alignment_fit <- fit_lpm(alignment_data, alignment_formula)
 
   main_effects <- collect_main_estimands(main_fit)
+  dominance <- collect_dominance(conjoint)
+  dominance_comparison <- attr(dominance, "roots_government_comparison")
 
   office_mms <- estimate_mm(office_fit, "municip", by = "office") %>%
     transmute(
@@ -1126,6 +1406,14 @@ build_paper_outputs <- function(
     arrange(rating) %>%
     mutate(percent = 100 * n / sum(n))
 
+  alignment_group_distribution <- respondent_groups %>%
+    count(respondent_gov, .drop = FALSE, name = "n") %>%
+    filter(!is.na(respondent_gov)) %>%
+    mutate(
+      respondent_gov = as.character(respondent_gov),
+      percent = 100 * n / sum(n)
+    )
+
   full_model_estimates <- broom::tidy(main_fit, conf.int = TRUE) %>%
     transmute(
       term,
@@ -1141,6 +1429,8 @@ build_paper_outputs <- function(
     conjoint,
     alignment_data,
     main_effects,
+    dominance,
+    dominance_comparison,
     office_mms,
     office_interaction_test,
     office_pairwise,
@@ -1166,6 +1456,11 @@ build_paper_outputs <- function(
         is_reference, estimate, std.error, conf.low, conf.high, p.value
       ),
     file.path(reports_dir, "paper_main_effects.csv")
+  )
+  write_csv(dominance, file.path(reports_dir, "paper_dominance.csv"))
+  write_csv(
+    dominance_comparison,
+    file.path(reports_dir, "paper_dominance_comparison.csv")
   )
   write_csv(office_mms, file.path(reports_dir, "paper_municip_by_office.csv"))
   write_csv(
@@ -1197,9 +1492,14 @@ build_paper_outputs <- function(
     advantage_distribution,
     file.path(reports_dir, "paper_advantage_distribution.csv")
   )
+  write_csv(
+    alignment_group_distribution,
+    file.path(reports_dir, "paper_alignment_group_distribution.csv")
+  )
   write_csv(full_model_estimates, file.path(reports_dir, "paper_full_model_estimates.csv"))
 
   main_plot <- make_main_effect_plot(main_effects)
+  dominance_plot <- make_dominance_plot(dominance, dominance_comparison)
   office_plot <- make_office_plot(office_mms)
   interaction_plot <- make_interaction_plot(
     alignment_mms,
@@ -1212,6 +1512,13 @@ build_paper_outputs <- function(
     main_plot,
     width = 10,
     height = 9,
+    dpi = 600
+  )
+  ggsave(
+    file.path(figures_dir, "paper_dominance.png"),
+    dominance_plot,
+    width = 7.2,
+    height = 3.8,
     dpi = 600
   )
   ggsave(
@@ -1235,10 +1542,13 @@ build_paper_outputs <- function(
       c(
         "paper_design_summary.csv",
         "paper_main_effects.csv",
+        "paper_dominance.csv",
+        "paper_dominance_comparison.csv",
         "paper_municip_by_office.csv",
         "paper_office_interaction_test.csv",
         "paper_office_pairwise.csv",
         "paper_alignment_marginal_means.csv",
+        "paper_alignment_group_distribution.csv",
         "paper_alignment_differences.csv",
         "paper_alignment_sensitivity.csv",
         "paper_alignment_interaction_tests.csv",
@@ -1254,6 +1564,7 @@ build_paper_outputs <- function(
       figures_dir,
       c(
         "paper_main_effects.png",
+        "paper_dominance.png",
         "paper_municip_by_office.png",
         "paper_cue_heterogeneity.png"
       )
